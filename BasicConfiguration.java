@@ -16,6 +16,38 @@ public class BasicConfiguration {
 
     protected user[] usuarios;
 
+    protected String SshOrTelnet;
+
+    protected Integer lineVtyCantidad = 15;
+
+    protected Integer tiempoInactivoLineVty = 5;
+
+    protected Integer tiempoConsole = 5;
+
+    boolean isNTPserverEnable;
+
+    protected ip logginIp;
+
+    protected ip ntpServer;
+
+    protected Integer loggingBuffered=4096;
+
+    public BasicConfiguration(){
+        isNTPserverEnable=false;
+    }
+
+    public String getNTPServer(){
+        return addConfTerminal("logging on\nlogging buffered "+loggingBuffered+"\nlogging "+logginIp+"\nntp server "+ntpServer+
+                "\nservice timestamps log datetime msec\n" +
+                "service timestamps debug datetime msec");
+
+    }
+
+    public String getTimeZoneMexico(){
+        return addConfTerminal("clock timezone CDT -1 0\n" +
+                "clock summer-time CDT recurring");
+    }
+
     public String getHostname() {
         return addConfTerminal("Hostname "+ hostname);
     }
@@ -48,6 +80,17 @@ public class BasicConfiguration {
         return regreso;
     }
 
+    public String getLineVTY(){
+        if (SshOrTelnet.equals("ssh") || SshOrTelnet.equals("all")){
+            return addConfTerminal("line vty 0 "+ lineVtyCantidad +" \nlogin local\nExec-timeout "+tiempoInactivoLineVty+"\nTransport input "+SshOrTelnet+" \nexit")+"\n"+addConfTerminal("Crypto key generate rsa 1024\nip ssh version 2");
+        }
+        return addConfTerminal("line vty 0 "+ lineVtyCantidad +" \nlogin local\nExec-timeout "+tiempoInactivoLineVty+"\nTransport input "+SshOrTelnet+" \nexit");
+    }
+
+    public String getConsoleExecTimeout(){
+        return addConfTerminal("line console 0\nlogin local\nexec-timeout 5 0\nexit");
+    }
+
     public void setSecret(String secret) {
         this.secret = secret;
     }
@@ -64,6 +107,13 @@ public class BasicConfiguration {
         this.banner=banner;
     }
 
+    public void setLineVtyNumber(int lineVtyNumber){
+        this.lineVtyCantidad=lineVtyNumber;
+    }
+
+    public void setLineVtyTiempo(int tiempo){
+        this.tiempoInactivoLineVty=tiempo;
+    }
 
     public void basicConfiguration(){
         //hostname
@@ -76,12 +126,57 @@ public class BasicConfiguration {
         configurarIpDomain();
         //tamaño usuarios
         configurarUserSize();
-        //for every use
+        //for every user
         configurarUser();
+        //Configure ssh and or telnet
+        configurarSSHTELNET();
+        //ask if there is an ntp server
+        checkNTPServet();
+
+
     }
+
+    public void checkNTPServet(){
+        Scanner entrada=new Scanner(System.in);
+        System.out.println("Desea usar un servidor NTP [y/n]");
+        String respuesta=entrada.nextLine();
+        if(respuesta.equals("Y")||respuesta.equals("y")||respuesta.equals("Yes")||respuesta.equals("yes")){
+            //ask for information about the ntp server
+            isNTPserverEnable=true;
+            //ask for logging
+            System.out.println("Igrese la ip donde guardara el log (logging ip):");
+            logginIp=new ip(entrada.nextLine());
+            System.out.println("Ingrese la ip del servidor ntp ");
+            ntpServer=new ip(entrada.nextLine());
+
+        }else {
+
+        }
+    }
+
 
     public String addConfTerminal(String toAdd){
         return "Configure terminal\n"+toAdd+"\nexit";
+    }
+
+    public void configurarSSHTELNET(){
+        Scanner entrada=new Scanner(System.in);
+        System.out.println("Cuantas line vty se usaran (4 0 15, se recomienda 15)");
+        int lineVtyNumber=parseInt(entrada.nextLine());
+        setLineVtyNumber(lineVtyNumber);
+        System.out.println("Ingrese el tiempo que de inactividad para terminar la conexión");
+        int tiempoInactivo=parseInt(entrada.nextLine());
+        setLineVtyTiempo(tiempoInactivo);
+        System.out.println("ingresar:\n 1 para ssh\n2 para telnet\n3 para all");
+        int datoIngresado=parseInt(entrada.nextLine());
+        if(datoIngresado==1){
+            SshOrTelnet="ssh";
+        }else if(datoIngresado==2){
+            SshOrTelnet="telnet";
+        }else {
+            SshOrTelnet="all";
+        }
+
     }
 
     public void configurarUserSize(){
@@ -144,6 +239,14 @@ public class BasicConfiguration {
                 "\tbanner='" + banner + '\'' + "\n"+
                 "\tip domain='" + ipDomain + '\'' + "\n"+
                 "\tusuarios:\n"+imprimirUsuarios+
+                "\tline vty 0 "+lineVtyCantidad+'\''+"\n"+
+                "\tExec-timeout "+tiempoInactivoLineVty+'\''+"\n"+
+                "\ttransport input "+SshOrTelnet+'\''+"\n"+
+                "\tConsole timeout "+tiempoConsole+'\''+"\n"+
+                "\tLogging  "+logginIp+'\''+"\n"+
+                "\tLogging Buffer "+ loggingBuffered+'\''+"\n"+
+                "\tNtp server "+ntpServer+'\''+"\n"+
+
                 '}';
     }
 
@@ -165,11 +268,16 @@ public class BasicConfiguration {
         regreso+="\n!--ip domain name\n"+getIpDomain()+"\n";
         //usuarios
         regreso+="\n!--Usuarios\n"+getUsuarios()+"\n";
-
+        //lineVty
+        regreso+="\n!--LineVTY\n"+getLineVTY()+"\n";
+        //Console time out
+        regreso+="\n!--console timeout\n"+getConsoleExecTimeout()+"\n";
+        if(isNTPserverEnable){
+            regreso+="\n!--Logging and ntp server\n"+getNTPServer()+"\n";
+        }
+        regreso+="\n!--TimeZone\n"+getTimeZoneMexico()+"\n";
         return regreso;
     }
-
-
 
 
     public void writeTxt(){
@@ -189,13 +297,12 @@ public class BasicConfiguration {
         }
     }
 
+
     public static void main(String[] args) {
         BasicConfiguration prueba=new BasicConfiguration();
         prueba.basicConfiguration();
         System.out.println(prueba);
         prueba.writeTxt();
-
-
     }
 
 
